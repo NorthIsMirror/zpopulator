@@ -1,0 +1,7 @@
+name=psprint/zpopulator
+link=dynamic
+load=no
+
+autofeatures=""
+
+objects="zpopulator.o"
