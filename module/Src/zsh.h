@@ -1117,6 +1117,26 @@ typedef void     (*ScanTabFunc)    _((HashTable, ScanFunc, int));
 
 typedef void (*PrintTableStats) _((HashTable));
 
+/* Structure for recording status of a hashtable scan in progress.  When a *
+ * scan starts, the .scan member of the hashtable structure points to one  *
+ * of these.  That member being non-NULL disables resizing of the          *
+ * hashtable (when adding elements).  When elements are deleted, the       *
+ * contents of this structure is used to make sure the scan won't stumble  *
+ * into the deleted element.                                               */
+
+typedef struct scanstatus *ScanStatus;
+
+struct scanstatus {
+    int sorted;
+    union {
+	struct {
+	    HashNode *hashtab;
+	    int ct;
+	} s;
+	HashNode u;
+    } u;
+};
+
 /* hash table for standard open hashing */
 
 struct hashtable {
