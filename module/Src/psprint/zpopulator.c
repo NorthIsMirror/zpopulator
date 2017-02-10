@@ -370,7 +370,12 @@ void *process_input( void *void_ptr ) {
 
     free_oconf( oconf );
 
+    /* Mark the thread as not working */
+    worker_finished[ oconf->id ][ 0 ] = '1';
+
+    /* Lower general workers counter */
     workers_count --;
+
     return NULL;
 }
 
@@ -470,6 +475,9 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
 
         return 1;
     }
+
+    /* Mark the thread as working */
+    worker_finished[ oconf->id ][ 0 ] = '0';
 
     /* Sum up the created worker thread */
     workers_count ++;
