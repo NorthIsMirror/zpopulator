@@ -59,6 +59,9 @@ static void my_stdunsetfn(Param pm, UNUSED(int exp));
 #define OUTPUT_HASH 2
 #define OUTPUT_VARS 3
 
+#define ROINTPARAMDEF(name, var) \
+    { name, PM_INTEGER | PM_READONLY, (void *) var, NULL,  NULL, NULL, NULL }
+
 struct outconf {
     int id;
     int mode;
@@ -502,7 +505,7 @@ static struct builtin bintab[] = {
 };
 
 static struct paramdef patab[] = {
-    INTPARAMDEF( "zpworkers_count", &workers_count ),
+    ROINTPARAMDEF( "zpworkers_count", &workers_count ),
 };
 
 static struct features module_features = {
