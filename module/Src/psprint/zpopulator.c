@@ -63,8 +63,13 @@ static void my_stdunsetfn(Param pm, UNUSED(int exp));
 #define OUTPUT_HASH 2
 #define OUTPUT_VARS 3
 
+#define WORKER_COUNT 32
+
 #define ROINTPARAMDEF(name, var) \
     { name, PM_INTEGER | PM_READONLY, (void *) var, NULL,  NULL, NULL, NULL }
+
+#define ROARRPARAMDEF(name, var) \
+    { name, PM_ARRAY | PM_READONLY, (void *) var, NULL,  NULL, NULL, NULL }
 
 struct outconf {
     int id;
@@ -85,7 +90,13 @@ struct zpinconf {
     char *command[2];
 };
 
-pthread_t workers[32];
+/* pthread data structures for all threads */
+pthread_t workers[ WORKER_COUNT ];
+
+/* Holds WORKER_COUNT designators of worker activity */
+char **worker_finished;
+
+/* Holds number of workers being active */
 int workers_count = 0;
 
 static
@@ -432,7 +443,7 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     /* Worker ID */
     if ( *argv ) {
         oconf->id = atoi( *argv );
-        if ( oconf->id > 31 || oconf->id < 0 ) {
+        if ( oconf->id >= WORKER_COUNT || oconf->id < 0 ) {
             if ( ! oconf->silent ) {
                 fprintf( stderr, "Worker thread ID should be from 0 to 31, aborting\n" );
                 fflush( stderr );
@@ -510,6 +521,7 @@ static struct builtin bintab[] = {
 
 static struct paramdef patab[] = {
     ROINTPARAMDEF( "zpworkers_count", &workers_count ),
+    ROARRPARAMDEF( "zpworker_finished", &worker_finished ),
 };
 
 static struct features module_features = {
@@ -546,6 +558,14 @@ enables_(Module m, int **enables)
 int
 boot_(Module m)
 {
+    worker_finished = zshcalloc( ( WORKER_COUNT + 1 ) * sizeof( char * ) );
+
+    for ( int i = 0 ; i < WORKER_COUNT; i ++ ) {
+        worker_finished[ i ] = ztrdup( "1" );
+    }
+
+    worker_finished[ WORKER_COUNT ] = NULL;
+
     return 0;
 }
 
