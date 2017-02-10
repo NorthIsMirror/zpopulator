@@ -192,7 +192,7 @@ void set_in_hash( struct outconf *oconf, const char *key, const char *value ) {
 
 static void
 show_help() {
-    printf( "Usage: source_program | zpopulator [-a name|-A name|-x] [-d string] [-D string]\n");
+    printf( "Usage: zpin \"source_program\" | zpopulator [-a name|-A name|-x] [-d string] [-D string] WORKER_ID\n");
     printf( "Options:\n" );
     printf( " -a name - put input into global array `name'\n" );
     printf( " -A name - put input into global hash `name', keys and values\n" );
@@ -204,6 +204,8 @@ show_help() {
     printf( " -g - ensure that there are only global variables in use - saves\n" );
     printf( "      disappointments when learning that output variable must\n" );
     printf( "      continuously live during computation\n" );
+    printf( " WORKER_ID - number of worker slot to use, 1..%d\n", WORKER_COUNT );
+    fflush( stdout );
 }
 
 static
@@ -448,9 +450,10 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     /* Worker ID */
     if ( *argv ) {
         oconf->id = atoi( *argv );
+        oconf->id --;
         if ( oconf->id >= WORKER_COUNT || oconf->id < 0 ) {
             if ( ! oconf->silent ) {
-                fprintf( stderr, "Worker thread ID should be from 0 to 31, aborting\n" );
+                fprintf( stderr, "Worker thread ID should be from 1 to %d, aborting\n", WORKER_COUNT );
                 fflush( stderr );
             }
             return 1;
