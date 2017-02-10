@@ -60,6 +60,7 @@ static void my_stdunsetfn(Param pm, UNUSED(int exp));
 #define OUTPUT_VARS 3
 
 struct outconf {
+    int id;
     int mode;
     char *target;
     Param target_pm;
@@ -73,7 +74,7 @@ struct outconf {
     int debug;
 };
 
-pthread_t workers[16];
+pthread_t workers[32];
 
 static
 Param ensurethereishash( char *name, struct outconf *oconf ) {
@@ -414,6 +415,20 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
         oconf->sub_d_len = strlen( oconf->sub_d );
     }
 
+    /* Worker ID */
+    if ( *argv ) {
+        oconf->id = atoi( *argv );
+        if ( oconf->id > 31 || oconf->id < 0 ) {
+            if ( ! oconf->silent ) {
+                fprintf( stderr, "Worker thread ID should be from 0 to 31, aborting\n" );
+                fflush( stderr );
+            }
+            return 1;
+        }
+    } else {
+        oconf->id = 0;
+    }
+
     oconf->target_pm = ensurethereishash( oconf->target, oconf );
     if ( ! oconf->target_pm ) {
         free_oconf( oconf );
@@ -421,7 +436,7 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     }
 
     /* Run the thread */
-    if ( pthread_create( &workers[0], NULL, process_input, oconf ) ) {
+    if ( pthread_create( &workers[ oconf->id ], NULL, process_input, oconf ) ) {
         if ( ! oconf->silent ) {
             fprintf( stderr, "zpopulator: Error creating thread\n" );
         }
