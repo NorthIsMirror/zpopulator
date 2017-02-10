@@ -7,6 +7,8 @@
  * Licensed under MIT, GPLv3.
  */
 
+/* Make-things-compile stuff {{{ */
+
 #include "../../config.h"
 
 #define MAXDEPTH 7
@@ -54,6 +56,8 @@ static void my_assigngetset(Param pm);
 static char * my_strgetfn(Param pm);
 static void my_strsetfn(Param pm, char *x);
 static void my_stdunsetfn(Param pm, UNUSED(int exp));
+
+/* }}} */
 
 #define OUTPUT_ARRAY 1
 #define OUTPUT_HASH 2
