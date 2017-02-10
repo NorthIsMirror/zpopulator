@@ -74,6 +74,10 @@ struct outconf {
     int debug;
 };
 
+struct zpinconf {
+    char *command[2];
+};
+
 pthread_t workers[32];
 
 static
@@ -449,12 +453,46 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     return 0;
 }
 
+/* this function is run by separate thread */
+
+static void *eval_it( void *void_ptr ) {
+    struct zpinconf *pconf = ( struct zpinconf * ) void_ptr;
+    bin_eval( NULL, pconf->command, NULL, 0 );
+    return NULL;
+}
+
+static int
+bin_zpin( char *name, char **argv, Options ops, int func )
+{
+    if ( ! *argv ) {
+        fprintf( stderr, "zpin expects string with command to execute\n" );
+        fflush( stderr );
+        return 1;
+    }
+
+    if ( fork() ) {
+        return 0;
+    } else {
+        struct zpinconf *pconf = zalloc( sizeof( struct zpinconf ) );
+        pconf->command[0] = ztrdup( *argv );
+        pconf->command[1] = NULL;
+
+        eval_it( pconf );
+
+        zsfree( pconf->command[0] );
+        zfree( pconf, sizeof ( struct zpinconf ) );
+    }
+
+    return 0;
+}
+
 /*
  * boot_ is executed when the module is loaded.
  */
 
 static struct builtin bintab[] = {
     BUILTIN("zpopulator", 0, bin_zpopulator, 0, -1, 0, "a:A:x:d:D:hsgv", NULL),
+    BUILTIN("zpin", 0, bin_zpin, 0, -1, 0, "", NULL),
 };
 
 static struct features module_features = {
