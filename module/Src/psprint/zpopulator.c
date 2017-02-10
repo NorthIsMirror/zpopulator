@@ -79,6 +79,7 @@ struct zpinconf {
 };
 
 pthread_t workers[32];
+int workers_count = 0;
 
 static
 Param ensurethereishash( char *name, struct outconf *oconf ) {
@@ -227,6 +228,7 @@ void *process_input( void *void_ptr ) {
             fprintf( stderr, "zpopulator: Out of memory in thread" );
         }
         free_oconf( oconf );
+        workers_count --;
         return NULL;
     }
 
@@ -350,6 +352,7 @@ void *process_input( void *void_ptr ) {
 
     free_oconf( oconf );
 
+    workers_count --;
     return NULL;
 }
 
@@ -450,6 +453,9 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
         return 1;
     }
 
+    /* Sum up the created worker thread */
+    workers_count ++;
+
     return 0;
 }
 
@@ -495,8 +501,15 @@ static struct builtin bintab[] = {
     BUILTIN("zpin", 0, bin_zpin, 0, -1, 0, "", NULL),
 };
 
+static struct paramdef patab[] = {
+    INTPARAMDEF( "zpworkers_count", &workers_count ),
+};
+
 static struct features module_features = {
     bintab, sizeof(bintab)/sizeof(*bintab),
+    0, 0,
+    0, 0,
+    patab, sizeof(patab)/sizeof(*patab),
     0
 };
 
