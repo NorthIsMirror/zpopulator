@@ -229,6 +229,31 @@ void free_oconf( struct outconf *oconf ) {
         if ( oconf->sub_d ) {
             zsfree( oconf->sub_d );
         }
+        zfree( oconf, sizeof( struct outconf ) );
+    }
+}
+
+static
+void free_oconf_thread_safe( struct outconf *oconf ) {
+    if ( oconf ) {
+        /* "dissociates the named stream from its
+         * underlying file or set of functions"
+         */
+        if ( 0 != fclose( oconf->stream ) ) {
+            fprintf( stderr, "zpopulator: Warning: could not close input stream\n" );
+            fflush( stderr );
+            /* TODO */
+        }
+
+        if ( oconf->target ) {
+            my_zsfree( oconf->target );
+        }
+        if ( oconf->main_d ) {
+            my_zsfree( oconf->main_d );
+        }
+        if ( oconf->sub_d ) {
+            my_zsfree( oconf->sub_d );
+        }
         my_zfree( oconf, sizeof( struct outconf ) );
     }
 }
@@ -247,7 +272,7 @@ void *process_input( void *void_ptr ) {
         if ( ! oconf->silent ) {
             fprintf( stderr, "zpopulator: Out of memory in thread" );
         }
-        free_oconf( oconf );
+        free_oconf_thread_safe( oconf );
         workers_count --;
         return NULL;
     }
@@ -370,7 +395,7 @@ void *process_input( void *void_ptr ) {
         }
     }
 
-    free_oconf( oconf );
+    free_oconf_thread_safe( oconf );
 
     /* Mark the thread as not working */
     worker_finished[ oconf->id ][ 0 ] = '1';
