@@ -557,6 +557,12 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
         return 1;
     }
 
+    /* Mark the thread as working */
+    worker_finished[ oconf->id ][ 0 ] = '0';
+
+    /* Sum up the created worker thread */
+    workers_count ++;
+
     /* Run the thread */
     if ( pthread_create( &workers[ oconf->id ], NULL, process_input, oconf ) ) {
         if ( ! oconf->silent ) {
@@ -567,12 +573,6 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
 
         return 1;
     }
-
-    /* Mark the thread as working */
-    worker_finished[ oconf->id ][ 0 ] = '0';
-
-    /* Sum up the created worker thread */
-    workers_count ++;
 
     return 0;
 }
