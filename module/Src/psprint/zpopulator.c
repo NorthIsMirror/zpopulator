@@ -267,7 +267,7 @@ void *process_input( void *void_ptr ) {
     /* Instructs what to do */
     struct outconf *oconf = ( struct outconf *) void_ptr;
 
-    buf = my_zalloc( bufsize );
+    buf = malloc( bufsize );
     if ( ! buf ) {
         if ( ! oconf->silent ) {
             fprintf( stderr, "zpopulator: Out of memory in thread" );
