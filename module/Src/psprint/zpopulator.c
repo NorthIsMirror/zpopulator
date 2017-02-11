@@ -218,19 +218,27 @@ show_help() {
 static
 void free_oconf( struct outconf *oconf ) {
     if ( oconf ) {
-        /* "dissociates the named stream from its
-         * underlying file or set of functions"
-         */
-        if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( oconf->err, "zpopulator: Warning: could not close input stream (%p): %s\n", oconf->stream, strerror( errno ) );
+        if ( NULL == oconf->stream || fileno( oconf->stream ) == -1 ) {
+            int file = oconf->stream ? fileno( oconf->stream ) : 0;
+            fprintf( oconf->err, "zpopulator: Input fail: %p (%d), %s\n", oconf->stream, file, strerror( errno ) );
             fflush( oconf->err );
-            /* TODO */
+        } else {
+            if ( -1 != fcntl( fileno( oconf->stream ), F_GETFD ) ) {
+                /* fclose: "dissociates the named stream from
+                 * its underlying file or set of functions"
+                 */
+                if ( 0 != fclose( oconf->stream ) ) {
+                    fprintf( oconf->err, "zpopulator: Warning: could not close input stream (%p): %s\n", oconf->stream, strerror( errno ) );
+                    fflush( oconf->err );
+                    /* TODO */
+                }
+            }
         }
 
-        if ( 0 != fclose( oconf->err ) ) {
-            //fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
-            //fflush( stdout );
-            /* TODO */
+        if ( -1 != fcntl( fileno( oconf->err ), F_GETFD ) ) {
+            if ( 0 != fclose( oconf->err ) ) {
+                /* TODO */
+            }
         }
 
         if ( oconf->target ) {
@@ -249,32 +257,27 @@ void free_oconf( struct outconf *oconf ) {
 static
 void free_oconf_thread_safe( struct outconf *oconf ) {
     if ( oconf ) {
-        if ( NULL == oconf->stream || oconf->stream->_file == -1 ) {
-            int file = oconf->stream ? oconf->stream->_file : 0;
-            fprintf( stderr, "Fail At Input: %p (%d), %s\n", oconf->stream, file, strerror( errno ) );
-            fflush( stderr );
+        if ( NULL == oconf->stream || fileno( oconf->stream ) == -1 ) {
+            int file = oconf->stream ? fileno( oconf->stream ): 0;
+            fprintf( oconf->err, "zpopulator: (thread) Input fail: %p (%d), %s\n", oconf->stream, file, strerror( errno ) );
+            fflush( oconf->err );
         } else {
-            int flags;
-            flags = fcntl( oconf->stream->_file, F_GETFD );
-            if (flags == -1) {
-                fprintf( stderr, "Indeed bad descriptor %d, %s\n", oconf->stream->_file, strerror( errno ) );
-                fflush( stderr );
+            if ( -1 != fcntl( fileno( oconf->stream ), F_GETFD ) ) {
+                /* fclose: "dissociates the named stream from
+                 * its underlying file or set of functions"
+                 */
+                if ( 0 != fclose( oconf->stream ) ) {
+                    fprintf( oconf->err, "zpopulator: (thread) Warning: could not close input stream (%p): %s\n", oconf->stream, strerror( errno ) );
+                    fflush( oconf->err );
+                    /* TODO */
+                }
             }
         }
 
-        /* "dissociates the named stream from its
-         * underlying file or set of functions"
-         */
-        if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( oconf->err, "zpopulator: Warning: could not close input stream (%p): %s\n", oconf->stream, strerror( errno ) );
-            fflush( oconf->err );
-            /* TODO */
-        }
-
-        if ( 0 != fclose( oconf->err ) ) {
-            //fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
-            //fflush( stdout );
-            /* TODO */
+        if ( -1 != fcntl( fileno( oconf->err ), F_GETFD ) ) {
+            if ( 0 != fclose( oconf->err ) ) {
+                /* TODO */
+            }
         }
 
         if ( oconf->target ) {
@@ -492,23 +495,16 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     dup2( fileno( oconf->r_devnull ), STDIN_FILENO );
     fclose( oconf->r_devnull );
 
-    if ( NULL == oconf->stream || oconf->stream->_file == -1 ) {
-        int file = oconf->stream ? oconf->stream->_file : 0;
+    if ( NULL == oconf->stream || fileno( oconf->stream ) == -1 ) {
+        int file = oconf->stream ? fileno( oconf->stream ) : 0;
         fprintf( stderr, "Failed to duplicate stream: %p (%d), %s\n", oconf->stream, file, strerror( errno ) );
         fflush( stderr );
-    } else {
-        int flags;
-        flags = fcntl( oconf->stream->_file, F_GETFD );
-        if (flags == -1) {
-            fprintf( stderr, "BEFORE Indeed bad descriptor %d, %s\n", oconf->stream->_file, strerror( errno ) );
-            fflush( stderr );
-        }
     }
 
     oconf->err = fdopen( dup( fileno( stderr ) ), "w" );
 
-    if ( NULL == oconf->err || oconf->err->_file == -1 ) {
-        int file = oconf->err ? oconf->err->_file : 0;
+    if ( NULL == oconf->err || fileno( oconf->err ) == -1 ) {
+        int file = oconf->err ? fileno( oconf->err ) : 0;
         fprintf( stderr, "Failed to duplicate stderr: %p (%d), %s\n", oconf->err, file, strerror( errno ) );
         fflush( stderr );
     }
