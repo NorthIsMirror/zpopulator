@@ -300,8 +300,12 @@ void *process_input( void *void_ptr ) {
     int main_d_len = oconf->main_d_len;
     int sub_d_len = oconf->sub_d_len;
     int read_size = 5;
+    volatile int loop_counter = 0;
 
     while ( 1 ) {
+        /* Loop counter used for debugging */
+        ++ loop_counter;
+
         /* Check if data will fit into buffer - sum current
          * number of bytes in buffer (`index`) and possible
          * maximum read size (`read_size`) and trailing null
