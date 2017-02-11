@@ -418,13 +418,13 @@ void *process_input( void *void_ptr ) {
         }
     }
 
-    free_oconf_thread_safe( oconf );
-
     /* Mark the thread as not working */
     worker_finished[ oconf->id ][ 0 ] = '1';
 
     /* Lower general workers counter */
     workers_count --;
+
+    free_oconf_thread_safe( oconf );
 
     pthread_exit( NULL );
     return NULL;
