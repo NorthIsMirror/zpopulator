@@ -82,6 +82,7 @@ struct outconf {
     int sub_d_len;
     FILE *stream;
     FILE *err;
+    FILE *r_devnull;
     int silent;
     int only_global;
     int debug;
@@ -89,6 +90,7 @@ struct outconf {
 
 struct zpinconf {
     char *command[2];
+    FILE *w_devnull;
 };
 
 /* pthread data structures for all threads */
@@ -220,14 +222,14 @@ void free_oconf( struct outconf *oconf ) {
          * underlying file or set of functions"
          */
         if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( oconf->err, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
+            fprintf( oconf->err, "zpopulator: Warning: could not close input stream (%p): %s\n", oconf->stream, strerror( errno ) );
             fflush( oconf->err );
             /* TODO */
         }
 
         if ( 0 != fclose( oconf->err ) ) {
-            fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
-            fflush( stdout );
+            //fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
+            //fflush( stdout );
             /* TODO */
         }
 
@@ -247,18 +249,31 @@ void free_oconf( struct outconf *oconf ) {
 static
 void free_oconf_thread_safe( struct outconf *oconf ) {
     if ( oconf ) {
+        if ( NULL == oconf->stream || oconf->stream->_file == -1 ) {
+            int file = oconf->stream ? oconf->stream->_file : 0;
+            fprintf( stderr, "Fail At Input: %p (%d), %s\n", oconf->stream, file, strerror( errno ) );
+            fflush( stderr );
+        } else {
+            int flags;
+            flags = fcntl( oconf->stream->_file, F_GETFD );
+            if (flags == -1) {
+                fprintf( stderr, "Indeed bad descriptor %d, %s\n", oconf->stream->_file, strerror( errno ) );
+                fflush( stderr );
+            }
+        }
+
         /* "dissociates the named stream from its
          * underlying file or set of functions"
          */
         if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( oconf->err, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
+            fprintf( oconf->err, "zpopulator: Warning: could not close input stream (%p): %s\n", oconf->stream, strerror( errno ) );
             fflush( oconf->err );
             /* TODO */
         }
 
         if ( 0 != fclose( oconf->err ) ) {
-            fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
-            fflush( stdout );
+            //fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
+            //fflush( stdout );
             /* TODO */
         }
 
@@ -468,8 +483,36 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     oconf->main_d_len = 1;
     oconf->sub_d = ztrdup(":");
     oconf->sub_d_len = 1;
+
+    /* Duplicate standard input */
     oconf->stream = fdopen( dup( fileno( stdin ) ), "r" );
+    /* Prepare standard input replacement */
+    oconf->r_devnull = fopen( "/dev/null", "r");
+    /* Replace standard input with /dev/null */
+    dup2( fileno( oconf->r_devnull ), STDIN_FILENO );
+    fclose( oconf->r_devnull );
+
+    if ( NULL == oconf->stream || oconf->stream->_file == -1 ) {
+        int file = oconf->stream ? oconf->stream->_file : 0;
+        fprintf( stderr, "Failed to duplicate stream: %p (%d), %s\n", oconf->stream, file, strerror( errno ) );
+        fflush( stderr );
+    } else {
+        int flags;
+        flags = fcntl( oconf->stream->_file, F_GETFD );
+        if (flags == -1) {
+            fprintf( stderr, "BEFORE Indeed bad descriptor %d, %s\n", oconf->stream->_file, strerror( errno ) );
+            fflush( stderr );
+        }
+    }
+
     oconf->err = fdopen( dup( fileno( stderr ) ), "w" );
+
+    if ( NULL == oconf->err || oconf->err->_file == -1 ) {
+        int file = oconf->err ? oconf->err->_file : 0;
+        fprintf( stderr, "Failed to duplicate stderr: %p (%d), %s\n", oconf->err, file, strerror( errno ) );
+        fflush( stderr );
+    }
+
     oconf->silent = OPT_ISSET( ops, 's' );
     oconf->only_global = OPT_ISSET( ops, 'g' );
     oconf->debug = OPT_ISSET( ops, 'v' );
@@ -555,9 +598,17 @@ bin_zpin( char *name, char **argv, Options ops, int func )
         return 1;
     }
 
+    pid_t pid = getppid();
+
     if ( fork() ) {
+        /* Prepare standard output replacement */
+        FILE *w_devnull = fopen( "/dev/null", "w");
+        /* Replace standard output with /dev/null */
+        dup2( fileno( w_devnull ), STDOUT_FILENO );
+        fclose( w_devnull );
         return 0;
     } else {
+        kill( pid, SIGCHLD );
         struct zpinconf *pconf = zalloc( sizeof( struct zpinconf ) );
         pconf->command[0] = ztrdup( *argv );
         pconf->command[1] = NULL;
