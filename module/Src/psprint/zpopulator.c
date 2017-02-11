@@ -219,7 +219,7 @@ void free_oconf( struct outconf *oconf ) {
          * underlying file or set of functions"
          */
         if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( stderr, "zpopulator: Warning: could not close input stream\n" );
+            fprintf( stderr, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
             fflush( stderr );
             /* TODO */
         }
@@ -244,7 +244,7 @@ void free_oconf_thread_safe( struct outconf *oconf ) {
          * underlying file or set of functions"
          */
         if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( stderr, "zpopulator: Warning: could not close input stream\n" );
+            fprintf( stderr, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
             fflush( stderr );
             /* TODO */
         }
@@ -278,6 +278,7 @@ void *process_input( void *void_ptr ) {
         }
         free_oconf_thread_safe( oconf );
         workers_count --;
+        pthread_exit( NULL );
         return NULL;
     }
 
@@ -407,6 +408,7 @@ void *process_input( void *void_ptr ) {
     /* Lower general workers counter */
     workers_count --;
 
+    pthread_exit( NULL );
     return NULL;
 }
 
