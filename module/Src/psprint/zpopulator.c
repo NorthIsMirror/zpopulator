@@ -81,6 +81,7 @@ struct outconf {
     char *sub_d;
     int sub_d_len;
     FILE *stream;
+    FILE *err;
     int silent;
     int only_global;
     int debug;
@@ -174,8 +175,8 @@ void set_in_hash( struct outconf *oconf, const char *key, const char *value ) {
     HashTable ht = (HashTable) oconf->target_pm->gsu.h->getfn( oconf->target_pm );
     if ( ! ht ) {
         if ( oconf->debug ) {
-            fprintf( stderr, "zpopulator: Hash table `%s' is null\n", oconf->target );
-            fflush( stderr );
+            fprintf( oconf->err, "zpopulator: Hash table `%s' is null\n", oconf->target );
+            fflush( oconf->err );
         }
         return;
     }
@@ -219,8 +220,14 @@ void free_oconf( struct outconf *oconf ) {
          * underlying file or set of functions"
          */
         if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( stderr, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
-            fflush( stderr );
+            fprintf( oconf->err, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
+            fflush( oconf->err );
+            /* TODO */
+        }
+
+        if ( 0 != fclose( oconf->err ) ) {
+            fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
+            fflush( stdout );
             /* TODO */
         }
 
@@ -244,8 +251,14 @@ void free_oconf_thread_safe( struct outconf *oconf ) {
          * underlying file or set of functions"
          */
         if ( 0 != fclose( oconf->stream ) ) {
-            fprintf( stderr, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
-            fflush( stderr );
+            fprintf( oconf->err, "zpopulator: Warning: could not close input stream: %s\n", strerror( errno ) );
+            fflush( oconf->err );
+            /* TODO */
+        }
+
+        if ( 0 != fclose( oconf->err ) ) {
+            fprintf( stdout, "zpopulator: Warning: could not close STDERR stream: %s\n", strerror( errno ) );
+            fflush( stdout );
             /* TODO */
         }
 
@@ -274,7 +287,8 @@ void *process_input( void *void_ptr ) {
     buf = malloc( bufsize );
     if ( ! buf ) {
         if ( ! oconf->silent ) {
-            fprintf( stderr, "zpopulator: Out of memory in thread" );
+            fputs( "zpopulator: Out of memory in thread", oconf->err );
+            fflush( oconf->err );
         }
         free_oconf_thread_safe( oconf );
         workers_count --;
@@ -298,8 +312,8 @@ void *process_input( void *void_ptr ) {
             char * save_buf = buf;
             buf = realloc( buf, bufsize );
             if ( ! buf ) {
-                fprintf( stderr, "zpopulator: Fatal error - could not reallocate buffer, lines are too long" );
-                fflush( stderr );
+                fprintf( oconf->err, "zpopulator: Fatal error - could not reallocate buffer, lines are too long" );
+                fflush( oconf->err );
                 free( save_buf );
                 break;
             }
@@ -320,8 +334,8 @@ void *process_input( void *void_ptr ) {
          * portion of data the strstr() will return NULL. */
         if ( feof( oconf->stream ) ) {
             if ( oconf->debug ) {
-                fprintf( stderr, "End of stream with unprocessed data, index: %d, buf: %s\n", index, buf );
-                fflush( stderr );
+                fprintf( oconf->err, "End of stream with unprocessed data, index: %d, buf: %s\n", index, buf );
+                fflush( oconf->err );
             }
             if( ! strstr( buf, oconf->main_d ) ) {
                 /* Enough room is ensured in top in this loop */
@@ -451,6 +465,7 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     oconf->sub_d = ztrdup(":");
     oconf->sub_d_len = 1;
     oconf->stream = fdopen( dup( fileno( stdin ) ), "r" );
+    oconf->err = fdopen( dup( fileno( stderr ) ), "w" );
     oconf->silent = OPT_ISSET( ops, 's' );
     oconf->only_global = OPT_ISSET( ops, 'g' );
     oconf->debug = OPT_ISSET( ops, 'v' );
@@ -945,7 +960,7 @@ static void * my_zalloc(size_t size)
 	size = 1;
 
     if (!(ptr = (void *) malloc(size))) {
-	fprintf( stderr, "zpopulator: fatal error: out of memory" );
+	fputs( "zpopulator: fatal error: out of memory", stderr );
         fflush( stderr );
     }
 
