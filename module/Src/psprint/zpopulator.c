@@ -167,6 +167,10 @@ Param ensurethereishash( char *name, struct outconf *oconf ) {
 
 static
 void set_in_hash( struct outconf *oconf, const char *key, const char *value ) {
+    if ( NULL == key || key[0] == '\0' ) {
+        return;
+    }
+
     HashTable ht = (HashTable) oconf->target_pm->gsu.h->getfn( oconf->target_pm );
     if ( ! ht ) {
         if ( oconf->debug ) {
