@@ -512,6 +512,9 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
         fflush( stderr );
     }
 
+    /* Submit the duplicated stderr FD to Zsh */
+    addmodulefd( fileno( oconf->err ), FDT_MODULE );
+
     oconf->silent = OPT_ISSET( ops, 's' );
     oconf->only_global = OPT_ISSET( ops, 'g' );
     oconf->debug = OPT_ISSET( ops, 'v' );
