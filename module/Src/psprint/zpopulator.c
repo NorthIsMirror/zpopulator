@@ -486,7 +486,13 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     oconf->main_d_len = 1;
     oconf->sub_d = ztrdup(":");
     oconf->sub_d_len = 1;
+    oconf->stream = NULL;
+    oconf->err = NULL;
+    oconf->r_devnull = NULL;
 
+    int tries = 0;
+
+duplicate_stdin:
     /* Duplicate standard input */
     oconf->stream = fdopen( dup( fileno( stdin ) ), "r" );
     /* Prepare standard input replacement */
@@ -494,22 +500,45 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     /* Replace standard input with /dev/null */
     dup2( fileno( oconf->r_devnull ), STDIN_FILENO );
     fclose( oconf->r_devnull );
+    oconf->r_devnull = NULL;
+
+    ++ tries;
 
     if ( NULL == oconf->stream || fileno( oconf->stream ) == -1 ) {
         int file = oconf->stream ? fileno( oconf->stream ) : 0;
-        fprintf( stderr, "Failed to duplicate stream: %p (%d), %s\n", oconf->stream, file, strerror( errno ) );
+        fprintf( stderr, "Failed to duplicate stream [%d]: %p (%d), %s\n", tries, oconf->stream, file, strerror( errno ) );
         fflush( stderr );
+        if ( tries < 8 ) {
+            goto duplicate_stdin;
+        } else {
+            oconf->stream = NULL;
+            free_oconf( oconf );
+            return 1;
+        }
     }
 
     /* Submit the FD to Zsh */
     addmodulefd( fileno( oconf->stream ), FDT_MODULE );
 
+    tries = 0;
+
+duplicate_stderr:
     oconf->err = fdopen( dup( fileno( stderr ) ), "w" );
+
+    ++ tries;
 
     if ( NULL == oconf->err || fileno( oconf->err ) == -1 ) {
         int file = oconf->err ? fileno( oconf->err ) : 0;
-        fprintf( stderr, "Failed to duplicate stderr: %p (%d), %s\n", oconf->err, file, strerror( errno ) );
+        fprintf( stderr, "Failed to duplicate stderr [%d]: %p (%d), %s\n", tries, oconf->err, file, strerror( errno ) );
         fflush( stderr );
+
+        if ( tries < 8 ) {
+            goto duplicate_stderr;
+        } else {
+            oconf->err = NULL;
+            free_oconf( oconf );
+            return 1;
+        }
     }
 
     /* Submit the duplicated stderr FD to Zsh */
