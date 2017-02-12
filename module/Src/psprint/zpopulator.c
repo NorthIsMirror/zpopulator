@@ -215,6 +215,12 @@ show_help() {
     fflush( stdout );
 }
 
+static void
+show_help_zpin() {
+    printf( "Usage: zpin \"<zsh code>\" | zpopulator ... <WORKER_ID>\n");
+    fflush( stdout );
+}
+
 static
 void free_oconf( struct outconf *oconf ) {
     if ( oconf ) {
@@ -624,6 +630,11 @@ static void *eval_it( void *void_ptr ) {
 static int
 bin_zpin( char *name, char **argv, Options ops, int func )
 {
+    if ( OPT_ISSET( ops, 'h' ) ) {
+        show_help_zpin();
+        return 0;
+    }
+
     if ( ! *argv ) {
         fprintf( stderr, "zpin expects string with command to execute\n" );
         fflush( stderr );
@@ -660,7 +671,7 @@ bin_zpin( char *name, char **argv, Options ops, int func )
 
 static struct builtin bintab[] = {
     BUILTIN("zpopulator", 0, bin_zpopulator, 0, -1, 0, "a:A:x:d:D:hsgv", NULL),
-    BUILTIN("zpin", 0, bin_zpin, 0, -1, 0, "", NULL),
+    BUILTIN("zpin", 0, bin_zpin, 0, -1, 0, "h", NULL),
 };
 
 static struct paramdef patab[] = {
