@@ -492,6 +492,30 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
 
     int tries = 0;
 
+duplicate_stderr:
+    oconf->err = fdopen( dup( fileno( stderr ) ), "w" );
+
+    ++ tries;
+
+    if ( NULL == oconf->err || fileno( oconf->err ) == -1 ) {
+        int file = oconf->err ? fileno( oconf->err ) : 0;
+        fprintf( stderr, "Failed to duplicate stderr [%d]: %p (%d), %s\n", tries, oconf->err, file, strerror( errno ) );
+        fflush( stderr );
+
+        if ( tries < 8 ) {
+            goto duplicate_stderr;
+        } else {
+            oconf->err = NULL;
+            free_oconf( oconf );
+            return 1;
+        }
+    }
+
+    /* Submit the duplicated stderr FD to Zsh */
+    addmodulefd( fileno( oconf->err ), FDT_MODULE );
+
+    tries = 0;
+
 duplicate_stdin:
     /* Duplicate standard input */
     oconf->stream = fdopen( dup( fileno( stdin ) ), "r" );
@@ -519,30 +543,6 @@ duplicate_stdin:
 
     /* Submit the FD to Zsh */
     addmodulefd( fileno( oconf->stream ), FDT_MODULE );
-
-    tries = 0;
-
-duplicate_stderr:
-    oconf->err = fdopen( dup( fileno( stderr ) ), "w" );
-
-    ++ tries;
-
-    if ( NULL == oconf->err || fileno( oconf->err ) == -1 ) {
-        int file = oconf->err ? fileno( oconf->err ) : 0;
-        fprintf( stderr, "Failed to duplicate stderr [%d]: %p (%d), %s\n", tries, oconf->err, file, strerror( errno ) );
-        fflush( stderr );
-
-        if ( tries < 8 ) {
-            goto duplicate_stderr;
-        } else {
-            oconf->err = NULL;
-            free_oconf( oconf );
-            return 1;
-        }
-    }
-
-    /* Submit the duplicated stderr FD to Zsh */
-    addmodulefd( fileno( oconf->err ), FDT_MODULE );
 
     oconf->silent = OPT_ISSET( ops, 's' );
     oconf->only_global = OPT_ISSET( ops, 'g' );
