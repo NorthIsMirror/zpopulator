@@ -501,6 +501,9 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
         fflush( stderr );
     }
 
+    /* Submit the FD to Zsh */
+    addmodulefd( fileno( oconf->stream ), FDT_MODULE );
+
     oconf->err = fdopen( dup( fileno( stderr ) ), "w" );
 
     if ( NULL == oconf->err || fileno( oconf->err ) == -1 ) {
