@@ -567,6 +567,7 @@ bin_zpopulator( char *name, char **argv, Options ops, int func )
     if ( pthread_create( &workers[ oconf->id ], NULL, process_input, oconf ) ) {
         if ( ! oconf->silent ) {
             fprintf( stderr, "zpopulator: Error creating thread\n" );
+            fflush( stderr );
         }
 
         free_oconf( oconf );
