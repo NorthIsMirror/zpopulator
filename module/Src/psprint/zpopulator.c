@@ -302,6 +302,7 @@ void free_oconf_thread_safe( struct outconf *oconf ) {
 /* this function is run by the second thread */
 static
 void *process_input( void *void_ptr ) {
+    static int ret_success = 0, ret_failure = 1;
     char *buf, *found;
     int bufsize = 256, index = 0;
 
@@ -316,8 +317,8 @@ void *process_input( void *void_ptr ) {
         }
         free_oconf_thread_safe( oconf );
         workers_count --;
-        pthread_exit( NULL );
-        return NULL;
+        pthread_exit( &ret_success );
+        return &ret_success;
     }
 
     /* Make those handy */
@@ -450,8 +451,8 @@ void *process_input( void *void_ptr ) {
 
     free_oconf_thread_safe( oconf );
 
-    pthread_exit( NULL );
-    return NULL;
+    pthread_exit( &ret_success );
+    return &ret_success;
 }
 
 /*
