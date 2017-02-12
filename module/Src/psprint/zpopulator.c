@@ -348,10 +348,16 @@ void *process_input( void *void_ptr ) {
             }
         }
 
+        errno = 0;
+
         /* Read e.g. 5 characters, putting them after previous portion */
         int count = fread( buf + index, 1, read_size, oconf->stream );
         /* Ensure that our whole data is a string - null terminated */
         buf[ index + count ] = '\0';
+
+        if ( errno ) {
+            fprintf( oconf->err, "zpopulator: Read error (descriptor: %d): %s\n", fileno( oconf->stream ), strerror( errno ) );
+        }
 
         /* No data in buffer, and stream is ended -> break */
         if ( feof( oconf->stream ) && (index+count) == 0 ) {
@@ -526,12 +532,6 @@ duplicate_stderr:
 duplicate_stdin:
     /* Duplicate standard input */
     oconf->stream = fdopen( dup( fileno( stdin ) ), "r" );
-    /* Prepare standard input replacement */
-    oconf->r_devnull = fopen( "/dev/null", "r");
-    /* Replace standard input with /dev/null */
-    dup2( fileno( oconf->r_devnull ), STDIN_FILENO );
-    fclose( oconf->r_devnull );
-    oconf->r_devnull = NULL;
 
     ++ tries;
 
@@ -550,6 +550,13 @@ duplicate_stdin:
 
     /* Submit the FD to Zsh */
     addmodulefd( fileno( oconf->stream ), FDT_MODULE );
+
+    /* Prepare standard input replacement */
+    oconf->r_devnull = fopen( "/dev/null", "r");
+    /* Replace standard input with /dev/null */
+    dup2( fileno( oconf->r_devnull ), STDIN_FILENO );
+    fclose( oconf->r_devnull );
+    oconf->r_devnull = NULL;
 
     oconf->silent = OPT_ISSET( ops, 's' );
     oconf->only_global = OPT_ISSET( ops, 'g' );
@@ -604,6 +611,14 @@ duplicate_stdin:
 
     /* Sum up the created worker thread */
     workers_count ++;
+
+#if 1
+    char buf[10];
+    if ( ! fread( buf, 1, 4, oconf->stream ) ) {
+        fprintf( stderr, "-- fread also failed, in main thread, fileno: %d\n", fileno( oconf->stream ) );
+        fflush( stderr );
+    }
+#endif
 
     /* Run the thread */
     if ( pthread_create( &workers[ oconf->id ], NULL, process_input, oconf ) ) {
