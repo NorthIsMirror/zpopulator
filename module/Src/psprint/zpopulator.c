@@ -86,6 +86,8 @@ struct outconf {
     int silent;
     int only_global;
     int debug;
+    pthread_cond_t      cond;
+    pthread_mutex_t     mutex;
 };
 
 struct zpinconf {
@@ -309,6 +311,38 @@ void *process_input( void *void_ptr ) {
     /* Instructs what to do */
     struct outconf *oconf = ( struct outconf *) void_ptr;
 
+    int tries = 0;
+
+duplicate_stdin:
+    /* Duplicate standard input */
+    oconf->stream = fdopen( dup( fileno( stdin ) ), "r" );
+
+    ++ tries;
+
+    if ( NULL == oconf->stream || fileno( oconf->stream ) == -1 ) {
+        int file = oconf->stream ? fileno( oconf->stream ) : 0;
+        fprintf( stderr, "Failed to duplicate stream [%d]: %p (%d), %s\n", tries, oconf->stream, file, strerror( errno ) );
+        fflush( stderr );
+        if ( tries < 8 ) {
+            goto duplicate_stdin;
+        } else {
+            pthread_mutex_lock( &oconf->mutex );
+            pthread_cond_signal( &oconf->cond );
+            pthread_mutex_unlock( &oconf->mutex );
+
+            oconf->stream = NULL;
+            free_oconf_thread_safe( oconf );
+            return NULL;
+        }
+    }
+
+    pthread_mutex_lock( &oconf->mutex );
+    pthread_cond_signal( &oconf->cond );
+    pthread_mutex_unlock( &oconf->mutex );
+
+    /* Submit the FD to Zsh */
+    addmodulefd( fileno( oconf->stream ), FDT_MODULE );
+
     buf = malloc( bufsize );
     if ( ! buf ) {
         if ( ! oconf->silent ) {
@@ -350,13 +384,24 @@ void *process_input( void *void_ptr ) {
 
         errno = 0;
 
+        int valid = 1;
+
+        if ( -1 == fcntl( fileno( oconf->stream ), F_GETFD ) ) {
+            valid = 0;
+        }
+
+        errno = 0;
+
         /* Read e.g. 5 characters, putting them after previous portion */
-        int count = fread( buf + index, 1, read_size, oconf->stream );
+        // int count = fread( buf + index, 1, read_size, oconf->stream );
+        int count = read( fileno( oconf->stream ), buf + index, read_size );
+        if ( count == -1 )
+            count = 0;
         /* Ensure that our whole data is a string - null terminated */
         buf[ index + count ] = '\0';
 
         if ( errno ) {
-            fprintf( oconf->err, "zpopulator: Read error (descriptor: %d): %s\n", fileno( oconf->stream ), strerror( errno ) );
+            fprintf( oconf->err, "zpopulator: Read error (descriptor: %d, fcntl: %d, ferror: %d, [%s]): %s\n", fileno( oconf->stream ), valid, ferror( oconf->stream ), buf + index, strerror( errno ) );
         }
 
         /* No data in buffer, and stream is ended -> break */
@@ -475,6 +520,9 @@ void *process_input( void *void_ptr ) {
 static int
 bin_zpopulator( char *name, char **argv, Options ops, int func )
 {
+    fprintf( stderr, "zpopulator stdin: %d\n", fileno( stdin ) );
+    fflush( stderr );
+
     if ( OPT_ISSET( ops, 'h' ) ) {
         show_help();
         return 0;
@@ -529,32 +577,10 @@ duplicate_stderr:
 
     tries = 0;
 
-duplicate_stdin:
-    /* Duplicate standard input */
-    oconf->stream = fdopen( dup( fileno( stdin ) ), "r" );
-
-    ++ tries;
-
-    if ( NULL == oconf->stream || fileno( oconf->stream ) == -1 ) {
-        int file = oconf->stream ? fileno( oconf->stream ) : 0;
-        fprintf( stderr, "Failed to duplicate stream [%d]: %p (%d), %s\n", tries, oconf->stream, file, strerror( errno ) );
-        fflush( stderr );
-        if ( tries < 8 ) {
-            goto duplicate_stdin;
-        } else {
-            oconf->stream = NULL;
-            free_oconf( oconf );
-            return 1;
-        }
-    }
-
-    /* Submit the FD to Zsh */
-    addmodulefd( fileno( oconf->stream ), FDT_MODULE );
-
     /* Prepare standard input replacement */
     oconf->r_devnull = fopen( "/dev/null", "r");
     /* Replace standard input with /dev/null */
-    dup2( fileno( oconf->r_devnull ), STDIN_FILENO );
+    // dup2( fileno( oconf->r_devnull ), STDIN_FILENO );
     fclose( oconf->r_devnull );
     oconf->r_devnull = NULL;
 
@@ -612,13 +638,17 @@ duplicate_stdin:
     /* Sum up the created worker thread */
     workers_count ++;
 
-#if 1
+#if 0
     char buf[10];
     if ( ! fread( buf, 1, 4, oconf->stream ) ) {
         fprintf( stderr, "-- fread also failed, in main thread, fileno: %d\n", fileno( oconf->stream ) );
         fflush( stderr );
     }
 #endif
+
+    pthread_cond_init( &oconf->cond, NULL );
+    pthread_mutex_init( &oconf->mutex, NULL );
+    pthread_mutex_lock( &oconf->mutex );
 
     /* Run the thread */
     if ( pthread_create( &workers[ oconf->id ], NULL, process_input, oconf ) ) {
@@ -632,6 +662,14 @@ duplicate_stdin:
         return 1;
     }
 
+    pthread_cond_t *cond = &oconf->cond;
+    pthread_mutex_t *mutex = &oconf->mutex;
+
+    pthread_cond_wait( cond, mutex );
+    pthread_mutex_unlock( mutex );
+    pthread_mutex_destroy( mutex );
+    pthread_cond_destroy( cond );
+
     return 0;
 }
 
@@ -639,7 +677,11 @@ duplicate_stdin:
 
 static void *eval_it( void *void_ptr ) {
     struct zpinconf *pconf = ( struct zpinconf * ) void_ptr;
+    fprintf( stderr, "[2] Zpin has stdout: %d\n", fileno( stdout ) );
+    fflush( stderr );
     bin_eval( NULL, pconf->command, NULL, 0 );
+    fprintf( stderr, "[3] Zpin has stdout: %d\n", fileno( stdout ) );
+    fflush( stderr );
     return NULL;
 }
 
@@ -656,6 +698,10 @@ bin_zpin( char *name, char **argv, Options ops, int func )
         fflush( stderr );
         return 1;
     }
+
+
+    fprintf( stderr, "[1] Zpin has stdout: %d\n", fileno( stdout ) );
+    fflush( stderr );
 
     pid_t pid = getppid();
 
